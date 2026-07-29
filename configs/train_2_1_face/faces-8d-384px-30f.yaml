@@ -1,0 +1,138 @@
+# V-JEPA 2.1 pretraining on face-centered clips with an 8-dimensional output head.
+#
+#   preprocessing : 1296x1296 source -> MediaPipe median face center -> 512x512 crop, 30 frames @10fps
+#   training      : 512 clips resized/cropped to 384 -> 24x24 tokens x 15 temporal = 8640 tokens
+#   encoder out   : [T/2, H/16, W/16, 8]  (e.g. [15,24,24,8] @384, [15,48,48,8] @768)
+#
+# Launch (single node, 4x T4):
+#   python -m app.main --fname configs/train_2_1_face/faces-8d-384px-30f.yaml \
+#          --devices cuda:0 cuda:1 cuda:2 cuda:3
+
+app: vjepa_2_1_face
+nodes: 1
+tasks_per_node: 4
+folder: /home/ubuntu/inwdata/prithvi/git/vjepa2/workarea/runs/faces-8d-384px-30f
+
+mlflow:
+  enabled: true
+  # MLflow >=3 rejects a plain file store, so we use the sqlite backend it asks for.
+  tracking_uri: sqlite:////home/ubuntu/inwdata/prithvi/git/vjepa2/workarea/mlflow.db
+  artifact_location: /home/ubuntu/inwdata/prithvi/git/vjepa2/workarea/mlartifacts
+  experiment: vjepa2_1_face_8d
+  run_name: vits-8d-384px-30f
+
+data:
+  dataset_type: VideoDataset
+  datasets:
+  - /home/ubuntu/inwdata/prithvi/git/vjepa2/workarea/train.csv
+  datasets_weights:
+  - 1.0
+  batch_size: 8          # per GPU (measured idle: ~3.1GB/15GB, ~5.5s/iter w/ activation checkpointing)
+  crop_size: 384
+  patch_size: 16
+  dataset_fpcs:
+  - 30
+  tubelet_size: 2
+  fps: 10
+  num_workers: 4
+  persistent_workers: true
+  pin_mem: true
+
+# Clips are already face-centered, so augmentation is kept mild on purpose:
+# the stock [0.3, 1.0] scale would randomly crop the face back out of frame.
+data_aug:
+  auto_augment: false
+  motion_shift: false
+  random_resize_aspect_ratio:
+  - 0.9
+  - 1.1
+  random_resize_scale:
+  - 0.7
+  - 1.0
+  reprob: 0.0
+
+# No image branch: img_data null keeps the pipeline pure-video (no ImageNet needed).
+img_data: null
+
+loss:
+  loss_exp: 1.0
+  predict_all: true
+  reg_coeff: 0.0
+  shift_by_n: 0
+  weight_distance_loss: true
+
+mask:
+- aspect_ratio:
+  - 0.75
+  - 1.5
+  full_complement: false
+  max_keep: null
+  max_temporal_keep: 1.0
+  num_blocks: 8
+  spatial_scale:
+  - 0.15
+  - 0.15
+  temporal_scale:
+  - 1.0
+  - 1.0
+- aspect_ratio:
+  - 0.75
+  - 1.5
+  full_complement: false
+  max_keep: null
+  max_temporal_keep: 1.0
+  num_blocks: 2
+  spatial_scale:
+  - 0.7
+  - 0.7
+  temporal_scale:
+  - 1.0
+  - 1.0
+
+meta:
+  dtype: float16        # T4 (Turing) has no native bfloat16
+  eval_freq: 100
+  load_checkpoint: true
+  read_checkpoint: null
+  save_every_freq: 10
+  seed: 239
+  use_sdpa: true
+
+model:
+  model_name: vit_small_lowdim   # 384-wide trunk, depth 12 -> 21.9M encoder (kept after training)
+  output_dim: 8                  # <-- the encoder's final channel dim
+  head_hidden_ratio: 0.0         # >0 makes the 8-d head an MLP instead of a Linear
+  has_cls_first: false
+  img_temporal_dim_size: null
+  interpolate_rope: true         # lets a 384-trained model run at 768 inference
+  is_causal: false
+  lambda_value_img: 0.5
+  lambda_value_vid: 0.5
+  lambda_progressive: false
+  modality_embedding: false
+  n_registers: 0
+  n_registers_predictor: 0
+  normalize_predictor: false
+  pred_depth: 12                 # predictor is discarded after training
+  pred_embed_dim: 384
+  pred_is_causal: false
+  pred_num_heads: 12
+  uniform_power: true
+  use_activation_checkpointing: true   # required to fit 8640 tokens on 16GB
+  use_mask_tokens: true
+  use_rope: true
+  zero_init_mask_tokens: true
+
+optimization:
+  ema:
+  - 0.998
+  - 0.9999
+  epochs: 300
+  final_lr: 1.0e-06
+  final_weight_decay: 0.04
+  ipe: null            # null -> use dataloader length
+  ipe_scale: 1.25
+  lr: 0.0003
+  start_lr: 0.00002
+  warmup: 15
+  weight_decay: 0.04
