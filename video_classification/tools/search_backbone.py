@@ -116,8 +116,21 @@ def summarize(store: ResultStore, best: dict, cfg, metric_key: str) -> pd.DataFr
     df["fits_budget"] = df[metric_key] <= cfg.budget_ms
     df["frontier"] = [best.get(e) == d for e, d in zip(df.embed_dim, df.depth)]
     df = df.sort_values(["embed_dim", "depth"])
-    cols = ["name", "embed_dim", "depth", "num_heads", "params_m", "tokens",
-            "lat_mean", "lat_median", "lat_p95", "lat_p99", "gpu_mean", "fits_budget", "frontier"]
+    cols = [
+        "name",
+        "embed_dim",
+        "depth",
+        "num_heads",
+        "params_m",
+        "tokens",
+        "lat_mean",
+        "lat_median",
+        "lat_p95",
+        "lat_p99",
+        "gpu_mean",
+        "fits_budget",
+        "frontier",
+    ]
     df[cols].to_csv(os.path.join(cfg.output_dir, "summary.csv"), index=False)
     return df[cols]
 

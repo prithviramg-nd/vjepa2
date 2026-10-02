@@ -140,4 +140,8 @@ def count_params(model: nn.Module) -> int:
 
 
 def num_tokens(spec: BackboneSpec, inp: InputSpec) -> int:
-    return (padded_frames(inp.num_frames, spec.tubelet_size) // spec.tubelet_size) * (inp.height // spec.patch_size) * (inp.width // spec.patch_size)
+    return (
+        (padded_frames(inp.num_frames, spec.tubelet_size) // spec.tubelet_size)
+        * (inp.height // spec.patch_size)
+        * (inp.width // spec.patch_size)
+    )

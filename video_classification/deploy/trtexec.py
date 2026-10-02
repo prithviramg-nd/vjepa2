@@ -13,8 +13,9 @@ def infer_cmd(trtexec: str, engine_path: str, flags: List[str]) -> str:
     return " ".join([trtexec, f"--loadEngine={engine_path}", *flags])
 
 
-_STAT = r"min = ([\d.]+) ms, max = ([\d.]+) ms, mean = ([\d.]+) ms, median = ([\d.]+) ms, percentile\(90%\) = ([\d.]+) ms, percentile\(95%\) = ([\d.]+) ms, percentile\(99%\) = ([\d.]+) ms"
 _KEYS = ("min", "max", "mean", "median", "p90", "p95", "p99")
+_LABELS = ("min", "max", "mean", "median", r"percentile\(90%\)", r"percentile\(95%\)", r"percentile\(99%\)")
+_STAT = ", ".join(rf"{label} = ([\d.]+) ms" for label in _LABELS)
 
 
 @dataclass

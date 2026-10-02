@@ -19,7 +19,9 @@ SMALL = InputSpec(batch_size=2, num_frames=6, in_chans=1, height=64, width=64)
 SPEC = BackboneSpec(embed_dim=96, num_heads=3, depth=4)
 
 
-@pytest.mark.parametrize("depth,expected", [(12, [2, 5, 8, 11]), (24, [5, 11, 17, 23]), (40, [9, 19, 29, 39]), (6, [1, 2, 4, 5])])
+@pytest.mark.parametrize(
+    "depth,expected", [(12, [2, 5, 8, 11]), (24, [5, 11, 17, 23]), (40, [9, 19, 29, 39]), (6, [1, 2, 4, 5])]
+)
 def test_hierarchical_levels_match_upstream_table(depth, expected):
     assert hierarchical_levels(depth) == expected
 
@@ -63,8 +65,9 @@ def test_parse_trtexec_summary():
         "[10/02/2026-07:32:12] [I] Throughput: 3.97 qps\n"
         "[10/02/2026-07:32:12] [I] Latency: min = 216.669 ms, max = 286.4 ms, mean = 251.969 ms, median = 252.851 ms, "
         "percentile(90%) = 276.468 ms, percentile(95%) = 286.4 ms, percentile(99%) = 286.4 ms\n"
-        "[10/02/2026-07:32:12] [I] GPU Compute Time: min = 215.734 ms, max = 285.356 ms, mean = 250.922 ms, median = 251.714 ms, "
-        "percentile(90%) = 275.455 ms, percentile(95%) = 285.356 ms, percentile(99%) = 285.356 ms\n"
+        "[10/02/2026-07:32:12] [I] GPU Compute Time: min = 215.734 ms, max = 285.356 ms, mean = 250.922 ms, "
+        "median = 251.714 ms, percentile(90%) = 275.455 ms, percentile(95%) = 285.356 ms, "
+        "percentile(99%) = 285.356 ms\n"
         "&&&& PASSED TensorRT.trtexec [TensorRT v100300]\n"
     )
     r = parse_infer_log(log)

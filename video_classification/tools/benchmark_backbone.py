@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 
 def run_name(spec, inp, exp) -> str:
     """Unique id of one measurement: architecture + input frames + export variant."""
-    return f"{spec.name}_f{inp.num_frames}_{'fp16' if exp.half else 'fp32'}_{'xattn' if exp.explicit_attention else 'sdpa'}"
+    precision = "fp16" if exp.half else "fp32"
+    attention = "xattn" if exp.explicit_attention else "sdpa"
+    return f"{spec.name}_f{inp.num_frames}_{precision}_{attention}"
 
 
 def export_spec(spec, inp, exp, out_dir: str) -> dict:
@@ -53,15 +55,31 @@ def export_spec(spec, inp, exp, out_dir: str) -> dict:
         "params_m": round(count_params(model) / 1e6, 2),
         "tokens": num_tokens(spec, inp),
         "onnx": onnx_path,
-        **{k: v for k, v in to_dict(spec).items() if k in ("embed_dim", "depth", "num_heads", "tubelet_size", "patch_size")},
+        **{
+            k: v
+            for k, v in to_dict(spec).items()
+            if k in ("embed_dim", "depth", "num_heads", "tubelet_size", "patch_size")
+        },
     }
 
 
 def benchmark_spec(spec, inp, exp, device: JetsonDevice, out_dir: str) -> dict:
     meta = export_spec(spec, inp, exp, os.path.join(out_dir, "onnx"))
     res = device.benchmark_onnx(meta["onnx"], os.path.join(out_dir, "logs"))
-    row = {**meta, "half": exp.half, "explicit_attention": exp.explicit_attention, **res.as_flat_dict(), "trt_passed": res.passed}
-    logger.info("%s  params=%.1fM  mean=%.2fms  p99=%.2fms", meta["name"], row["params_m"], row["lat_mean"] or -1, row["lat_p99"] or -1)
+    row = {
+        **meta,
+        "half": exp.half,
+        "explicit_attention": exp.explicit_attention,
+        **res.as_flat_dict(),
+        "trt_passed": res.passed,
+    }
+    logger.info(
+        "%s  params=%.1fM  mean=%.2fms  p99=%.2fms",
+        meta["name"],
+        row["params_m"],
+        row["lat_mean"] or -1,
+        row["lat_p99"] or -1,
+    )
     return row
 
 
@@ -79,7 +97,9 @@ def main():
     p.add_argument("--out_dir", help="default: <search.output_dir>/devices/<host>")
     args = p.parse_args()
     inp, spec, exp, dev_cfg, search = load_search_config(args.config)
-    spec = replace(spec, **{k: getattr(args, k) for k in ("embed_dim", "num_heads", "depth") if getattr(args, k) is not None})
+    spec = replace(
+        spec, **{k: getattr(args, k) for k in ("embed_dim", "num_heads", "depth") if getattr(args, k) is not None}
+    )
     if args.num_frames:
         inp = replace(inp, num_frames=args.num_frames)
     exp = replace(exp, **{k: getattr(args, k) for k in ("half", "explicit_attention") if getattr(args, k) is not None})
