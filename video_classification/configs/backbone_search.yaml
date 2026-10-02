@@ -1,0 +1,63 @@
+# Latency-constrained V-JEPA 2.1 backbone search on Jetson Orin NX (TensorRT 10.3, FP16).
+# Device password comes from $JETSON_PASSWORD, never from this file.
+
+input:                 # deployed clip: 6 s @ 5 fps, grayscale, laid out [B, T, C, H, W]
+  batch_size: 1
+  num_frames: 30
+  in_chans: 1
+  height: 224
+  width: 224
+
+backbone:              # selected (2026-10-02): 192 x 7, 3.26M params, 38.7 ms mean on Orin NX; the search varies embed_dim/num_heads/depth
+  embed_dim: 192
+  depth: 7
+  num_heads: 3
+  mlp_ratio: 4.0
+  patch_size: 16
+  tubelet_size: 2      # 30 frames -> 15 x 14 x 14 = 2940 tokens
+  use_rope: true
+  interpolate_rope: true
+  modality_embedding: true
+  img_temporal_dim_size: 1
+
+export:               # fixes for TRT live here in PyTorch, never as ONNX edits
+  half: true           # FP16 weights in the graph; with an FP32 graph TRT 10.3 kept the transformer in FP32
+  explicit_attention: true  # softmax(q k^T) v instead of SDPA so TRT fuses attention
+  opset: 18
+
+device:
+  host: 172.16.19.193
+  user: ubuntu
+  password_env: JETSON_PASSWORD
+  remote_dir: /home/ubuntu/latency_analysis
+  trtexec: /usr/src/tensorrt/bin/trtexec
+  build_flags:         # TRT 10 replaced --workspace with --memPoolSize
+    - --fp16
+    - --tacticSources=-CUBLAS_LT,-CUBLAS,-CUDNN
+    - --memPoolSize=workspace:2048M
+    - --timingCacheFile=/home/ubuntu/latency_analysis/timing.cache  # reuse kernel timings across builds (build speed only)
+  infer_flags:         # --separateProfileRun keeps per-layer profiling out of the timed run
+    - --warmUp=1000
+    - --iterations=1000
+    - --verbose
+    - --dumpProfile
+    - --separateProfileRun
+  keep_remote_files: false
+
+search:
+  budget_ms: 40.0
+  metric: mean
+  widths:              # head_dim fixed at 64
+    - {embed_dim: 192, num_heads: 3}
+    - {embed_dim: 256, num_heads: 4}
+    - {embed_dim: 320, num_heads: 5}
+    - {embed_dim: 384, num_heads: 6}
+    - {embed_dim: 448, num_heads: 7}
+    - {embed_dim: 512, num_heads: 8}
+    - {embed_dim: 576, num_heads: 9}
+    - {embed_dim: 640, num_heads: 10}
+    - {embed_dim: 768, num_heads: 12}
+  probe_depths: [4, 8]
+  min_depth: 4
+  max_depth: 24
+  output_dir: /home/ubuntu/inwdata/prithvi/claude_workarea/video_classification/backbone_search
